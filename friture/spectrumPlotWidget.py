@@ -356,37 +356,51 @@ class QuadsItem:
 
         n = x.shape[0]
 
-        # 4 vertices per quad * (3 coordinates + 3 color coordinates)
-        if self.vertices_data.shape != (n*4, 6):
-            self.vertices_data = zeros((n*4, 6), dtype=np.float32)
+        # (1 quad = 2 triangles = 6 vertices) * (3 coordinates + 3 color coordinates)
+        if self.vertices_data.shape != (n*6, 6):
+            self.vertices_data = zeros((n*6, 6), dtype=np.float32)
 
-        self.vertices_data[0::4, 0::6] = x[:,np.newaxis]
-        self.vertices_data[0::4, 1::6] = (y + h)[:,np.newaxis]
-        self.vertices_data[0::4, 2::6] = 0*x[:,np.newaxis]
-        self.vertices_data[0::4, 3::6] = r[:,np.newaxis]
-        self.vertices_data[0::4, 4::6] = g[:,np.newaxis]
-        self.vertices_data[0::4, 5::6] = b[:,np.newaxis]
+        self.vertices_data[0::6, 0::6] = x[:,np.newaxis]
+        self.vertices_data[0::6, 1::6] = (y + h)[:,np.newaxis]
+        self.vertices_data[0::6, 2::6] = 0*x[:,np.newaxis]
+        self.vertices_data[0::6, 3::6] = r[:,np.newaxis]
+        self.vertices_data[0::6, 4::6] = g[:,np.newaxis]
+        self.vertices_data[0::6, 5::6] = b[:,np.newaxis]
 
-        self.vertices_data[1::4, 0::6] = (x + w)[:,np.newaxis]
-        self.vertices_data[1::4, 1::6] = (y + h)[:,np.newaxis]
-        self.vertices_data[1::4, 2::6] = 0*x[:,np.newaxis]
-        self.vertices_data[1::4, 3::6] = r[:,np.newaxis]
-        self.vertices_data[1::4, 4::6] = g[:,np.newaxis]
-        self.vertices_data[1::4, 5::6] = b[:,np.newaxis]
+        self.vertices_data[1::6, 0::6] = (x + w)[:,np.newaxis]
+        self.vertices_data[1::6, 1::6] = (y + h)[:,np.newaxis]
+        self.vertices_data[1::6, 2::6] = 0*x[:,np.newaxis]
+        self.vertices_data[1::6, 3::6] = r[:,np.newaxis]
+        self.vertices_data[1::6, 4::6] = g[:,np.newaxis]
+        self.vertices_data[1::6, 5::6] = b[:,np.newaxis]
 
-        self.vertices_data[2::4, 0::6] = (x + w)[:,np.newaxis]
-        self.vertices_data[2::4, 1::6] = y[:,np.newaxis]
-        self.vertices_data[2::4, 2::6] = 0*x[:,np.newaxis]
-        self.vertices_data[2::4, 3::6] = r[:,np.newaxis]
-        self.vertices_data[2::4, 4::6] = g[:,np.newaxis]
-        self.vertices_data[2::4, 5::6] = b[:,np.newaxis]
+        self.vertices_data[2::6, 0::6] = x[:,np.newaxis]
+        self.vertices_data[2::6, 1::6] = y[:,np.newaxis]
+        self.vertices_data[2::6, 2::6] = 0*x[:,np.newaxis]
+        self.vertices_data[2::6, 3::6] = r[:,np.newaxis]
+        self.vertices_data[2::6, 4::6] = g[:,np.newaxis]
+        self.vertices_data[2::6, 5::6] = b[:,np.newaxis]
 
-        self.vertices_data[3::4, 0::6] = x[:,np.newaxis]
-        self.vertices_data[3::4, 1::6] = y[:,np.newaxis]
-        self.vertices_data[3::4, 2::6] = 0*x[:,np.newaxis]
-        self.vertices_data[3::4, 3::6] = r[:,np.newaxis]
-        self.vertices_data[3::4, 4::6] = g[:,np.newaxis]
-        self.vertices_data[3::4, 5::6] = b[:,np.newaxis]
+        self.vertices_data[3::6, 0::6] = x[:,np.newaxis]
+        self.vertices_data[3::6, 1::6] = y[:,np.newaxis]
+        self.vertices_data[3::6, 2::6] = 0*x[:,np.newaxis]
+        self.vertices_data[3::6, 3::6] = r[:,np.newaxis]
+        self.vertices_data[3::6, 4::6] = g[:,np.newaxis]
+        self.vertices_data[3::6, 5::6] = b[:,np.newaxis]
+
+        self.vertices_data[4::6, 0::6] = (x + w)[:,np.newaxis]
+        self.vertices_data[4::6, 1::6] = y[:,np.newaxis]
+        self.vertices_data[4::6, 2::6] = 0*x[:,np.newaxis]
+        self.vertices_data[4::6, 3::6] = r[:,np.newaxis]
+        self.vertices_data[4::6, 4::6] = g[:,np.newaxis]
+        self.vertices_data[4::6, 5::6] = b[:,np.newaxis]
+
+        self.vertices_data[5::6, 0::6] = (x + w)[:,np.newaxis]
+        self.vertices_data[5::6, 1::6] = (y + h)[:,np.newaxis]
+        self.vertices_data[5::6, 2::6] = 0*x[:,np.newaxis]
+        self.vertices_data[5::6, 3::6] = r[:,np.newaxis]
+        self.vertices_data[5::6, 4::6] = g[:,np.newaxis]
+        self.vertices_data[5::6, 5::6] = b[:,np.newaxis]
 
     def transformUpdate(self):
         self.need_transform = True
@@ -450,22 +464,17 @@ class QuadsItem:
 
         vbo.set_array(self.vertices_data)
 
-        shaders.glUseProgram(shader_program)
-
+        vbo.bind()
         try:
-            vbo.bind()
-            try:
-                GL.glEnableVertexAttribArray(0)
-                GL.glEnableVertexAttribArray(1)
-                stride = self.vertices_data.shape[-1]*sizeof(c_float)
-                vertex_offset = c_void_p(0 * sizeof(c_float))
-                color_offset  = c_void_p(3 * sizeof(c_float))
-                GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, vertex_offset)
-                GL.glVertexAttribPointer(1, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, color_offset)
-                GL.glDrawArrays(GL.GL_QUADS, 0, self.vertices_data.shape[0])
-                GL.glDisableVertexAttribArray(0)
-                GL.glDisableVertexAttribArray(1)
-            finally:
-                vbo.unbind()
+            GL.glEnableVertexAttribArray(0)
+            GL.glEnableVertexAttribArray(1)
+            stride = self.vertices_data.shape[-1]*sizeof(c_float)
+            vertex_offset = c_void_p(0 * sizeof(c_float))
+            color_offset  = c_void_p(3 * sizeof(c_float))
+            GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, vertex_offset)
+            GL.glVertexAttribPointer(1, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, color_offset)
+            GL.glDrawArrays(GL.GL_TRIANGLES, 0, self.vertices_data.shape[0])
+            GL.glDisableVertexAttribArray(0)
+            GL.glDisableVertexAttribArray(1)
         finally:
-            shaders.glUseProgram(0)
+            vbo.unbind()

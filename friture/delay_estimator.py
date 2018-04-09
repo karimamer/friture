@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (C) 2009 Timoth?Lecomte
+# Copyright (C) 2009 Timothée Lecomte
 
 # This file is part of Friture.
 #
@@ -18,79 +18,15 @@
 # along with Friture.  If not, see <http://www.gnu.org/licenses/>.
 
 from PyQt5 import QtGui, QtWidgets
-from numpy import argmax
 import numpy
-from numpy.fft import rfft, irfft
-from .filter import decimate
-from friture import generated_filters
-from .ringbuffer import RingBuffer
 
-from friture.audiobackend import SAMPLING_RATE
+from friture import generated_filters
+from .audiobackend import SAMPLING_RATE
+from .ringbuffer import RingBuffer
+from .signal.decimate import decimate_multiple, decimate_multiple_filtic
+from .signal.correlation import generalized_cross_correlation
 
 DEFAULT_DELAYRANGE = 1  # default delay range is 1 second
-
-
-def subsampler(Ndec, bdec, adec, x, zis):
-    x_dec = x
-
-    # FIXME problems when x is smaller than filter coeff
-
-    # do not run on empty arrays, otherwise bad artefacts on the output !!
-    if x.size == 0:
-        return x, zis
-
-    if zis is None:
-        for i in range(Ndec):
-            x_dec, zf = decimate(bdec, adec, x_dec)
-        return x_dec, None
-    else:
-        zfs = []
-        for i, zi in zip(list(range(Ndec)), zis):
-            x_dec, zf = decimate(bdec, adec, x_dec, zi=zi)
-            # zf can be reused to restart the filter
-            zfs += [zf]
-        return x_dec, zfs
-
-# build a proper array of zero initial conditions to start the subsampler
-
-
-def subsampler_filtic(Ndec, bdec, adec):
-    zfs = []
-    for i in range(Ndec):
-        l = max(len(bdec), len(adec)) - 1
-        zfs += [numpy.zeros(l)]
-    return zfs
-
-
-def generalized_cross_correlation(d0, d1):
-    # substract the means
-    # (in order to get a normalized cross-correlation at the end)
-    d0 -= d0.mean()
-    d1 -= d1.mean()
-
-    # Hann window to mitigate non-periodicity effects
-    window = numpy.hanning(len(d0))
-
-    # compute the cross-correlation
-    D0 = rfft(d0 * window)
-    D1 = rfft(d1 * window)
-    D0r = D0.conjugate()
-    G = D0r * D1
-    # G = (G==0.)*1e-30 + (G<>0.)*G
-    # W = 1. # frequency unweighted
-    # W = 1./numpy.abs(G) # "PHAT"
-    absG = numpy.abs(G)
-    m = max(absG)
-    W = 1. / (1e-10 * m + absG)
-    # D1r = D1.conjugate(); G0 = D0r*D0; G1 = D1r*D1; W = numpy.abs(G)/(G0*G1) # HB weighted
-    Xcorr = irfft(W * G)
-    # Xcorr_unweighted = irfft(G)
-    # numpy.save("d0.npy", d0)
-    # numpy.save("d1.npy", d1)
-    # numpy.save("Xcorr.npy", Xcorr)
-
-    return Xcorr
-
 
 class Delay_Estimator_Widget(QtWidgets.QWidget):
 
@@ -160,8 +96,8 @@ class Delay_Estimator_Widget(QtWidgets.QWidget):
         [self.bdec, self.adec] = generated_filters.PARAMS['dec']
         self.bdec = numpy.array(self.bdec)
         self.adec = numpy.array(self.adec)
-        self.zfs0 = subsampler_filtic(self.Ndec, self.bdec, self.adec)
-        self.zfs1 = subsampler_filtic(self.Ndec, self.bdec, self.adec)
+        self.zfs0 = decimate_multiple_filtic(self.Ndec, self.bdec, self.adec)
+        self.zfs1 = decimate_multiple_filtic(self.Ndec, self.bdec, self.adec)
 
         # ringbuffers for the subsampled data
         self.ringbuffer0 = RingBuffer()
@@ -193,8 +129,8 @@ class Delay_Estimator_Widget(QtWidgets.QWidget):
             x0 = floatdata[0, :]
             x1 = floatdata[1, :]
             # subsample them
-            x0_dec, self.zfs0 = subsampler(self.Ndec, self.bdec, self.adec, x0, self.zfs0)
-            x1_dec, self.zfs1 = subsampler(self.Ndec, self.bdec, self.adec, x1, self.zfs1)
+            x0_dec, self.zfs0 = decimate_multiple(self.Ndec, self.bdec, self.adec, x0, self.zfs0)
+            x1_dec, self.zfs1 = decimate_multiple(self.Ndec, self.bdec, self.adec, x1, self.zfs1)
             # push to a 1-second ring buffer
             x0_dec.shape = (1, x0_dec.size)
             x1_dec.shape = (1, x1_dec.size)
@@ -238,7 +174,7 @@ class Delay_Estimator_Widget(QtWidgets.QWidget):
                         smoothed_Xcorr = Xcorr
 
                     absXcorr = numpy.abs(smoothed_Xcorr)
-                    i = argmax(absXcorr)
+                    i = numpy.argmax(absXcorr)
 
                     # normalize
                     # Xcorr_max_norm = Xcorr_unweighted[i]/(d0.size*std0*std1)

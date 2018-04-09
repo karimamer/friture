@@ -28,7 +28,7 @@ import logging.handlers
 from PyQt5 import QtCore
 # specifically import from PyQt5.QtGui and QWidgets for startup time improvement :
 from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QApplication, QSplashScreen
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QSurfaceFormat
 import appdirs
 
 # importing friture.exceptionhandler also installs a temporary exception hook
@@ -331,6 +331,15 @@ def main():
         logger.info("Adding the following to the Library paths: %s", pluginsPath)
         QApplication.addLibraryPath(pluginsPath)
 
+        # on macOS, OpenGL 2.1 does not work well
+        # request a 3.2 Core context instead
+        format = QSurfaceFormat()
+        format.setDepthBufferSize(24)
+        format.setStencilBufferSize(8)
+        format.setVersion(3, 2)
+        format.setProfile(QSurfaceFormat.CoreProfile)
+        QSurfaceFormat.setDefaultFormat(format)
+
     # Splash screen
     pixmap = QPixmap(":/images/splash.png")
     splash = QSplashScreen(pixmap)
@@ -354,17 +363,21 @@ def main():
         else:
             logger.info("command-line arguments (%s) not recognized", sys.argv[1:])
 
+    return_code = 0
     if profile == "python":
         import cProfile
         import pstats
 
+        # friture.cprof can be visualized with SnakeViz
+        # http://jiffyclub.github.io/snakeviz/
+        # snakeviz friture.cprof
         cProfile.runctx('app.exec_()', globals(), locals(), filename="friture.cprof")
+
+        logger.info("Profile saved to '%s'", "friture.cprof")
 
         stats = pstats.Stats("friture.cprof")
         stats.strip_dirs().sort_stats('time').print_stats(20)
         stats.strip_dirs().sort_stats('cumulative').print_stats(20)
-
-        sys.exit(0)
     elif profile == "kcachegrind":
         import cProfile
         import lsprofcalltree
@@ -375,7 +388,11 @@ def main():
         k = lsprofcalltree.KCacheGrind(p)
         with open('cachegrind.out.00000', 'wb') as data:
             k.output(data)
-
-        sys.exit(0)
     else:
-        sys.exit(app.exec_())
+        return_code = app.exec_()
+
+    # explicitly delete the main windows instead of waiting for the interpreter shutdown
+    # tentative to prevent errors on exit on macos
+    del window
+
+    sys.exit(return_code)
